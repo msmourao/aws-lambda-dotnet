@@ -16,9 +16,7 @@ public class CallbackOperationTests
     private static string IdAt(int position) => OperationIdGenerator.HashOperationId(position.ToString());
 
     private static TestLambdaContext CreateLambdaContext() =>
-#pragma warning disable AWSLAMBDA001 // TestLambdaContext.Serializer is experimental.
         new() { Serializer = new DefaultLambdaJsonSerializer() };
-#pragma warning restore AWSLAMBDA001
 
     private static (DurableContext context, RecordingBatcher recorder, TerminationManager tm, ExecutionState state)
         CreateContext(InitialExecutionState? initialState = null)
@@ -163,7 +161,7 @@ public class CallbackOperationTests
 
         // GetResultAsync should signal termination and return a never-completing task.
         var resultTask = callback.GetResultAsync();
-        await Task.Delay(10);
+        await tm.WaitForTerminationAsync();
 
         Assert.True(tm.IsTerminated);
         Assert.False(resultTask.IsCompleted);
@@ -193,7 +191,7 @@ public class CallbackOperationTests
         Assert.False(tm.IsTerminated);
 
         var resultTask = callback.GetResultAsync();
-        await Task.Delay(10);
+        await tm.WaitForTerminationAsync();
 
         Assert.True(tm.IsTerminated);
         Assert.False(resultTask.IsCompleted);

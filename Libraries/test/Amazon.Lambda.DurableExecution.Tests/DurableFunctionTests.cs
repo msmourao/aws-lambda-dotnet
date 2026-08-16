@@ -6,6 +6,7 @@ using System.Text.Json;
 using Amazon.Lambda;
 using Amazon.Lambda.DurableExecution;
 using Amazon.Lambda.DurableExecution.Internal;
+using Amazon.Lambda.DurableExecution.Services;
 using Amazon.Lambda.Serialization.SystemTextJson;
 using Amazon.Lambda.TestUtilities;
 using Amazon.Runtime;
@@ -19,9 +20,7 @@ public class DurableFunctionTests
     private static string IdAt(int position) => OperationIdGenerator.HashOperationId(position.ToString());
 
     private static TestLambdaContext CreateLambdaContext() =>
-#pragma warning disable AWSLAMBDA001 // TestLambdaContext.Serializer is experimental.
         new() { Serializer = new DefaultLambdaJsonSerializer() };
-#pragma warning restore AWSLAMBDA001
 
     private readonly IAmazonLambda _mockClient = new MockLambdaClient();
 
@@ -752,6 +751,56 @@ public class DurableFunctionTests
 
         Assert.Equal(InvocationStatus.Pending, output.Status);
         Assert.Equal(id, observed);
+    }
+
+    [Fact]
+    public async Task WrapAsync_InternalOverloadWithIDurableServiceClient_WorksIdenticallyToPublicOverload()
+    {
+        var pastExpirationMs = DateTimeOffset.UtcNow.AddSeconds(-5).ToUnixTimeMilliseconds();
+        var input = new DurableExecutionInvocationInput
+        {
+            DurableExecutionArn = "arn:aws:lambda:us-east-1:123:durable-execution:seam-test",
+            InitialExecutionState = new InitialExecutionState
+            {
+                Operations = new List<Operation>
+                {
+                    new()
+                    {
+                        Id = "exec-0",
+                        Type = OperationTypes.Execution,
+                        Status = OperationStatuses.Started,
+                        ExecutionDetails = new ExecutionDetails { InputPayload = "{\"orderId\":\"order-123\"}" }
+                    },
+                    new()
+                    {
+                        Id = IdAt(1),
+                        Type = OperationTypes.Step,
+                        Status = OperationStatuses.Succeeded,
+                        StepDetails = new StepDetails { Result = "{\"IsValid\":true}" }
+                    },
+                    new()
+                    {
+                        Id = IdAt(2),
+                        Type = OperationTypes.Wait,
+                        Status = OperationStatuses.Pending,
+                        WaitDetails = new WaitDetails { ScheduledEndTimestamp = pastExpirationMs }
+                    }
+                }
+            }
+        };
+
+        var serviceClient = new Services.LambdaDurableServiceClient(new MockLambdaClient());
+
+        var output = await DurableFunction.WrapAsync<OrderEvent, OrderResult>(
+            MyWorkflow,
+            input,
+            CreateLambdaContext(),
+            (Services.IDurableServiceClient)serviceClient);
+
+        Assert.Equal(InvocationStatus.Succeeded, output.Status);
+        Assert.NotNull(output.Result);
+        var result = JsonSerializer.Deserialize<OrderResult>(output.Result!);
+        Assert.Equal("approved", result!.Status);
     }
 
     private static async Task<OrderResult> MyWorkflow(OrderEvent input, IDurableContext context)

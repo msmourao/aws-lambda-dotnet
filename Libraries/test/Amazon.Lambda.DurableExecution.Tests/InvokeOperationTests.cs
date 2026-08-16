@@ -23,9 +23,7 @@ public class InvokeOperationTests
         state.LoadFromCheckpoint(initialState);
         var tm = new TerminationManager();
         var idGen = new OperationIdGenerator();
-#pragma warning disable AWSLAMBDA001 // TestLambdaContext.Serializer is experimental.
         var lambdaContext = new TestLambdaContext { Serializer = new DefaultLambdaJsonSerializer() };
-#pragma warning restore AWSLAMBDA001
         var recorder = new RecordingBatcher();
         var context = new DurableContext(state, tm, new WorkflowCancellation(tm), idGen, "arn:test", lambdaContext, recorder.Batcher);
         return (context, recorder, tm, state);
@@ -74,7 +72,7 @@ public class InvokeOperationTests
             payload: "x",
             name: "noversion");
 
-        await Task.Delay(20);
+        await tm.WaitForTerminationAsync();
         Assert.True(tm.IsTerminated);
         Assert.False(task.IsCompleted);
 
@@ -100,7 +98,7 @@ public class InvokeOperationTests
 
         // Service-side suspend mechanics: TerminationManager fires before the
         // user task completes; the task itself never resolves on the fresh path.
-        await Task.Delay(20);
+        await tm.WaitForTerminationAsync();
         Assert.True(tm.IsTerminated);
         Assert.False(task.IsCompleted);
 
@@ -130,7 +128,7 @@ public class InvokeOperationTests
 
         var task = context.InvokeAsync<string, string>(FunctionArn, "payload", name: "no_tenant");
 
-        await Task.Delay(20);
+        await tm.WaitForTerminationAsync();
         Assert.True(tm.IsTerminated);
         Assert.False(task.IsCompleted);
 
@@ -154,7 +152,7 @@ public class InvokeOperationTests
         var (context, recorder, tm, _) = CreateContext();
 
         var task = context.InvokeAsync<string, string>(FunctionArn, "x", name: "sync_flush");
-        await Task.Delay(20);
+        await tm.WaitForTerminationAsync();
 
         Assert.True(tm.IsTerminated);
         Assert.False(task.IsCompleted);
@@ -350,7 +348,7 @@ public class InvokeOperationTests
         });
 
         var task = context.InvokeAsync<string, string>(FunctionArn, "x", name: "still_running");
-        await Task.Delay(20);
+        await tm.WaitForTerminationAsync();
 
         Assert.True(tm.IsTerminated);
         Assert.False(task.IsCompleted);
@@ -377,7 +375,7 @@ public class InvokeOperationTests
         });
 
         var task = context.InvokeAsync<string, string>(FunctionArn, "x", name: "pending");
-        await Task.Delay(20);
+        await tm.WaitForTerminationAsync();
 
         Assert.True(tm.IsTerminated);
         Assert.False(task.IsCompleted);
@@ -475,9 +473,7 @@ public class InvokeOperationTests
         var state = new ExecutionState();
         state.LoadFromCheckpoint(null);
         var idGen = new OperationIdGenerator();
-#pragma warning disable AWSLAMBDA001
         var lambdaContext = new TestLambdaContext { Serializer = new DefaultLambdaJsonSerializer() };
-#pragma warning restore AWSLAMBDA001
         var batcher = new RecordingBatcher();
         var context = new DurableContext(state, tm, new WorkflowCancellation(tm), idGen, "arn:test", lambdaContext, batcher.Batcher);
 
@@ -527,9 +523,7 @@ public class InvokeOperationTests
         });
 
         var idGen = new OperationIdGenerator();
-#pragma warning disable AWSLAMBDA001
         var lambdaContext = new TestLambdaContext { Serializer = new DefaultLambdaJsonSerializer() };
-#pragma warning restore AWSLAMBDA001
         var context = new DurableContext(state, tm, new WorkflowCancellation(tm), idGen, "arn:test", lambdaContext);
         var finalizeRan = false;
 

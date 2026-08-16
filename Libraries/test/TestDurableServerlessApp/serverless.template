@@ -1,0 +1,30 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Transform": "AWS::Serverless-2016-10-31",
+  "Description": "An AWS Serverless Application with a durable execution function, deployed via CloudFormation for integration testing. This template is partially managed by Amazon.Lambda.Annotations (v2.4.0.0).",
+  "Resources": {
+    "TestDurableServerlessAppFunctionWorkflowGenerated": {
+      "Type": "AWS::Serverless::Function",
+      "Metadata": {
+        "Tool": "Amazon.Lambda.Annotations",
+        "SyncedDurableConfig": true,
+        "SyncedDurablePolicy": true
+      },
+      "Properties": {
+        "Runtime": "dotnet10",
+        "CodeUri": ".",
+        "MemorySize": 512,
+        "Timeout": 30,
+        "Policies": [
+          "AWSLambdaBasicExecutionRole",
+          "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicDurableExecutionRolePolicy"
+        ],
+        "PackageType": "Zip",
+        "Handler": "TestDurableServerlessApp::TestDurableServerlessApp.Function_Workflow_Generated::Workflow",
+        "DurableConfig": {
+          "ExecutionTimeout": 300
+        }
+      }
+    }
+  }
+}

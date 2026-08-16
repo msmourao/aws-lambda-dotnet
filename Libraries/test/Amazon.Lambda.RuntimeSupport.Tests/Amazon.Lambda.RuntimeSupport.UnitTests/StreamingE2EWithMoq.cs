@@ -37,7 +37,15 @@ namespace Amazon.Lambda.RuntimeSupport.UnitTests
     [Collection("RuntimeSupportStateCheck")]
     public class StreamingE2EWithMoq : IDisposable
     {
-        public void Dispose()
+        // Reset the factory's static/async-local state before AND after each test so these tests
+        // start from a clean slate. The root cause of the cross-test leak (multi-concurrency tests
+        // writing the AsyncLocal on a reused xUnit worker thread) is contained at its source by
+        // running those tests on isolated Task.Run flows; this reset is belt-and-suspenders.
+        public StreamingE2EWithMoq() => ResetFactoryState();
+
+        public void Dispose() => ResetFactoryState();
+
+        private static void ResetFactoryState()
         {
             ResponseStreamFactory.CleanupInvocation(isMultiConcurrency: false);
             ResponseStreamFactory.CleanupInvocation(isMultiConcurrency: true);
@@ -97,10 +105,13 @@ namespace Amazon.Lambda.RuntimeSupport.UnitTests
                 };
             }
 
+            public string LastInvocationId { get; private set; }
+
             internal override async Task<IDisposable> StartStreamingResponseAsync(
-                string awsRequestId, ResponseStream responseStream, CancellationToken cancellationToken = default)
+                string awsRequestId, string invocationId, ResponseStream responseStream, CancellationToken cancellationToken = default)
             {
                 StartStreamingCalled = true;
+                LastInvocationId = invocationId;
                 LastResponseStream = responseStream;
 
                 // Use a real MemoryStream as the HTTP output stream so we capture actual bytes
@@ -115,7 +126,12 @@ namespace Amazon.Lambda.RuntimeSupport.UnitTests
                 return new NoOpDisposable();
             }
 
-            public new async Task SendResponseAsync(string awsRequestId, Stream outputStream, CancellationToken cancellationToken = default)
+            public new Task SendResponseAsync(string awsRequestId, Stream outputStream, CancellationToken cancellationToken = default)
+            {
+                return SendResponseAsync(awsRequestId, null, outputStream, cancellationToken);
+            }
+
+            public new async Task SendResponseAsync(string awsRequestId, string invocationId, Stream outputStream, CancellationToken cancellationToken = default)
             {
                 SendResponseCalled = true;
                 if (outputStream != null)
@@ -128,6 +144,11 @@ namespace Amazon.Lambda.RuntimeSupport.UnitTests
             }
 
             public new Task ReportInvocationErrorAsync(string awsRequestId, Exception exception, CancellationToken cancellationToken = default)
+            {
+                return ReportInvocationErrorAsync(awsRequestId, null, exception, cancellationToken);
+            }
+
+            public new Task ReportInvocationErrorAsync(string awsRequestId, string invocationId, Exception exception, CancellationToken cancellationToken = default)
             {
                 ReportInvocationErrorCalled = true;
                 return Task.CompletedTask;
@@ -386,7 +407,7 @@ namespace Amazon.Lambda.RuntimeSupport.UnitTests
                 : base(new TestEnvironmentVariables(), new NoOpInternalRuntimeApiClient()) { }
 
             internal override async Task<IDisposable> StartStreamingResponseAsync(
-                string awsRequestId, ResponseStream responseStream, CancellationToken cancellationToken = default)
+                string awsRequestId, string invocationId, ResponseStream responseStream, CancellationToken cancellationToken = default)
             {
                 // Provide the HTTP output stream so writes don't block
                 await responseStream.SetHttpOutputStreamAsync(new MemoryStream());

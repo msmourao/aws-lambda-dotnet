@@ -15,9 +15,7 @@ public class WaitForConditionOperationTests
     private static string IdAt(int position) => OperationIdGenerator.HashOperationId(position.ToString());
 
     private static TestLambdaContext CreateLambdaContext(ILambdaSerializer? serializer = null) =>
-#pragma warning disable AWSLAMBDA001 // TestLambdaContext.Serializer is experimental.
         new() { Serializer = serializer ?? new DefaultLambdaJsonSerializer() };
-#pragma warning restore AWSLAMBDA001
 
     private static (DurableContext context, RecordingBatcher recorder, TerminationManager tm, ExecutionState state)
         CreateContext(InitialExecutionState? initialState = null, ILambdaSerializer? serializer = null)
@@ -89,7 +87,7 @@ public class WaitForConditionOperationTests
             },
             name: "poll");
 
-        await Task.Delay(50);
+        await tm.WaitForTerminationAsync();
 
         Assert.True(tm.IsTerminated);
         Assert.False(task.IsCompleted);
@@ -315,8 +313,11 @@ public class WaitForConditionOperationTests
 
         await recorder.Batcher.DrainAsync();
 
-        // No new START — original is authoritative.
-        Assert.DoesNotContain(recorder.Flushed, o => o.Action == "START");
+        // Each poll iteration emits its own START (StepStarted), matching the
+        // spec and the Python/JS/Java SDKs. START is only skipped when the
+        // persisted status is STARTED (see Replay_Started_*); a PENDING resume
+        // gets a fresh START.
+        Assert.Contains(recorder.Flushed, o => o.Action == "START");
         Assert.Contains(recorder.Flushed, o => o.Action == "SUCCEED");
     }
 
@@ -365,7 +366,11 @@ public class WaitForConditionOperationTests
         Assert.Equal(22, result);
 
         await recorder.Batcher.DrainAsync();
-        Assert.DoesNotContain(recorder.Flushed, o => o.Action == "START");
+        // Each poll iteration emits its own START (StepStarted), matching the
+        // spec and the Python/JS/Java SDKs. START is only skipped when the
+        // persisted status is STARTED (see Replay_Started_*); a READY resume
+        // gets a fresh START.
+        Assert.Contains(recorder.Flushed, o => o.Action == "START");
     }
 
     [Fact]
@@ -818,7 +823,7 @@ public class WaitForConditionOperationTests
             },
             name: "poll");
 
-        await Task.Delay(50);
+        await tm.WaitForTerminationAsync();
 
         Assert.True(tm.IsTerminated);
         Assert.False(task.IsCompleted);

@@ -1,7 +1,5 @@
 # AWS Lambda Durable Execution SDK for .NET
 
-> **Preview.** `Amazon.Lambda.DurableExecution` is in active development (0.x). Public APIs may change before 1.0.
-
 `Amazon.Lambda.DurableExecution` is the .NET SDK for building resilient, long-running AWS Lambda functions that automatically checkpoint progress and resume after failures. Workflows can run for up to one year, with charges only for active compute time.
 
 ## Key Features
@@ -128,7 +126,7 @@ using Amazon.Lambda.DurableExecution;
 public class OrderProcessor
 {
     [LambdaFunction]
-    [DurableExecution(RetentionPeriodInDays = 7, ExecutionTimeout = 300)]
+    [DurableExecution(executionTimeout: 300, RetentionPeriodInDays = 7)]
     public async Task<OrderResult> Workflow(Order order, IDurableContext ctx)
     {
         var reservation = await ctx.StepAsync(

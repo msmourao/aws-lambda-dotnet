@@ -1,3 +1,76 @@
+## Release 2026-08-04
+
+### Amazon.Lambda.RuntimeSupport (2.2.0)
+* Add support for the Lambda-Runtime-Invocation-Id header for cross-wiring invoke protection. The runtime echoes the header back on the response and error calls when the Runtime API provides it, and treats an HTTP 410 Gone (invoke timeout) response as a non-fatal condition, logging it and continuing to the next invocation.
+
+## Release 2026-07-29
+
+### Amazon.Lambda.Core (3.3.0)
+* Lambda response streaming is now available as GA. The RequiresPreviewFeatures attribute has been removed
+* The LambdaLogger.ConfigureStructuredLogging API has been deployed to the managed runtime. The RequiresPreviewFeatures attribute has been removed
+### Amazon.Lambda.Annotations (2.4.0)
+* Updated Amazon.Lambda.Core dependency to include Lambda Response Streaming support.
+### Amazon.Lambda.AspNetCoreServer (10.2.0)
+* Removed RequiresPreviewFeatures attribute for Lambda Response Streaming.
+* Updated Amazon.Lambda.Core dependency to include Lambda Response Streaming support.
+### Amazon.Lambda.AspNetCoreServer.Hosting (2.2.0)
+* Removed RequiresPreviewFeatures attribute for Lambda Response Streaming.
+* Updated Amazon.Lambda.Core dependency to include Lambda Response Streaming support.
+### Amazon.Lambda.PowerShellHost (4.1.0)
+* Updated Amazon.Lambda.Core dependency to include Lambda Response Streaming support.
+### Amazon.Lambda.RuntimeSupport (2.1.3)
+* Added the AWS_LAMBDA_DOTNET_DISABLE_CONSOLE_CAPTURE environment variable to disable capturing stdout/stderr. This is intended for test scenarios where replacing the process-wide Console output causes cross-test interference.
+
+## Release 2026-07-22
+
+### Amazon.Lambda.Core (3.2.0)
+* Graduate ILambdaContext.Serializer from experimental to stable. The AWSLAMBDA001 experimental diagnostic is removed; the managed runtime now populates the serializer in both the executable and class-library programming models.
+### Amazon.Lambda.Templates (8.1.2)
+* Update the durable function blueprints (DurableFunction and serverless.DurableFunction) to reference the GA 1.0.0 Amazon.Lambda.DurableExecution and Amazon.Lambda.DurableExecution.Testing packages instead of the preview versions.
+### Amazon.Lambda.PowerShellHost (4.0.1)
+* Update System.Security.Cryptography.Xml dependency to 8.0.4 for .NET 8 and 10.0.10 for .NET 10
+### Amazon.Lambda.TestUtilities (4.2.0)
+* Graduate TestLambdaContext.Serializer from experimental to stable, mirroring the graduation of ILambdaContext.Serializer. The AWSLAMBDA001 experimental diagnostic is removed.
+### Amazon.Lambda.DurableExecution (1.0.0)
+* General availability release. Amazon.Lambda.DurableExecution is now GA and stable at 1.0.0; the SDK is no longer preview.
+### Amazon.Lambda.DurableExecution.Testing (1.0.0)
+* General availability release. Amazon.Lambda.DurableExecution.Testing is now GA and stable at 1.0.0; the package is no longer preview.
+
+## Release 2026-07-14
+
+### Amazon.Lambda.DurableExecution (0.3.2-preview)
+* Fix two durable Map/Parallel conformance issues found via cross-SDK testing. (1) Per-item map iteration child contexts now use the SubType "MapIteration" (was "MapItem"), matching the JS/Python/Java SDKs. (2) Persist each unit's result/error inline on the parent Parallel/Map SUCCEED payload for Nested nesting (previously only Flat), so a batch that completes and then suspends (e.g. a wait after the map) reconstructs its per-item results correctly on replay — the service collapses completed per-unit child contexts out of the resumed state, so the inline copy is the authoritative source. Large aggregate results still overflow to the ReplayChildren path. Preview.
+
+## Release 2026-07-13
+
+### Amazon.Lambda.DurableExecution (0.3.1-preview)
+* Fix durable execution conformance issues found via cross-SDK testing. WaitForCondition now re-emits a fresh START on each poll iteration (READY/PENDING replays), matching the Python/JS/Java SDKs and the spec; only a STARTED-status replay skips it. Preview.
+
+## Release 2026-07-10
+
+### Amazon.Lambda.DurableExecution (0.3.0-preview)
+* Add virtual-context support to standalone RunInChildContextAsync via ChildContextConfig.NestingType. Setting NestingType.Flat runs the child in a virtual context that emits no CONTEXT checkpoint of its own (mirroring MapConfig/ParallelConfig), enabling manual fan-out with Task.WhenAll while reducing checkpoint volume.
+* Align ParallelAsync/MapAsync failure semantics with the JS/Python SDKs (breaking, preview). ParallelAsync and MapAsync no longer throw on failure — they always return an IBatchResult; inspect CompletionReason/HasFailure or call ThrowIfError(). The ParallelException and MapException types are removed. MapConfig.CompletionConfig now defaults to AllSuccessful() (fail-fast), matching ParallelConfig. An empty CompletionConfig() is now fail-fast (any failure resolves FailureToleranceExceeded); use CompletionConfig.AllCompleted() to run every unit regardless of failures. MapConfig is now generic (MapConfig<TItem>) so ItemNamer is typed Func<TItem, int, string> instead of Func<object, int, string>. Preview.
+### Amazon.Lambda.Annotations (2.3.0)
+* Add diagnostic AWSLambda0145 (Warning) for durable execution functions. When a [DurableExecution] function registers the source-generator serializer (SourceGeneratorLambdaJsonSerializer<TContext>), the durable invocation envelope types DurableExecutionInvocationInput and DurableExecutionInvocationOutput must be registered on the JsonSerializerContext with [JsonSerializable]. The generator now warns at build time when either is missing, instead of the function failing at invocation time. Preview.
+### Amazon.Lambda.Templates (8.1.1)
+* Set AutoPublishAlias to 'live' on the function in the serverless.DurableFunction blueprint (vs2026). SAM now publishes a new function version and points the 'live' alias at it on every deploy, so the durable function can be invoked immediately after deployment instead of failing with a no-published-version error. Preview.
+
+## Release 2026-07-02 #2
+
+### Amazon.Lambda.Templates (8.1.0)
+* Add lambda.DurableFunction and serverless.DurableFunction blueprints (vs2026) for Lambda durable execution workflows. lambda.DurableFunction uses the class-library static-wrapper model (DurableFunction.WrapAsync) and deploys via dotnet lambda deploy-function; serverless.DurableFunction uses the annotations model ([LambdaFunction] + [DurableExecution]) and deploys via CloudFormation (serverless.template). Both target the managed dotnet10 runtime and ship a sample ProcessOrder workflow plus a local test project driven by Amazon.Lambda.DurableExecution.Testing. Preview.
+
+## Release 2026-07-02
+
+### Amazon.Lambda.DurableExecution (0.2.0-preview)
+* Add Roslyn analyzers (DE001-DE004) that catch common durable-execution authoring mistakes at build time, bundled in the package so they activate automatically for consumers. DE001 (Warning) flags non-deterministic APIs (DateTime.Now, Guid.NewGuid(), Random, Stopwatch, Environment.TickCount, crypto RNG) used in workflow code outside a step. DE002 (Warning) flags a durable operation invoked inside a step body via the captured outer IDurableContext. DE003 (Warning) flags mutation of a captured outer-scope variable inside a durable-operation delegate. DE004 (Info) suggests ParallelAsync/MapAsync over Task.WhenAll/Task.WhenAny for durable tasks. DE001 and DE004 include code fixes. Preview.
+### Amazon.Lambda.Annotations (2.2.0)
+* Breaking Change: Make ExecutionTimeout a required constructor argument on [DurableExecution]. The Lambda service rejects a durable function whose DurableConfig has no ExecutionTimeout, so the source generator now always emits it and never produces an empty DurableConfig block that would fail deployment. RetentionPeriodInDays remains an optional named property.
+### Amazon.Lambda.DurableExecution.Testing (0.1.0-preview)
+* Add Amazon.Lambda.DurableExecution.Testing package
+* Fix local test runner spinning on real timers/retry backoffs when SkipTime is disabled by delaying until the next scheduled resume time, and throw an actionable error when WaitForResultAsync is called without a prior StartAsync
+
 ## Release 2026-06-26
 
 ### Amazon.Lambda.DurableExecution (0.1.2-preview)

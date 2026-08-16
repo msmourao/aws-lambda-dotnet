@@ -19,9 +19,7 @@ public class DurableContextTests
     private static string IdAt(int position) => OperationIdGenerator.HashOperationId(position.ToString());
 
     private static TestLambdaContext CreateLambdaContext() =>
-#pragma warning disable AWSLAMBDA001 // TestLambdaContext.Serializer is experimental.
         new() { Serializer = new DefaultLambdaJsonSerializer() };
-#pragma warning restore AWSLAMBDA001
 
     private static DurableContext CreateContext(
         InitialExecutionState? initialState = null,
@@ -379,7 +377,7 @@ public class DurableContextTests
         var waitTask = context.WaitAsync(TimeSpan.FromSeconds(30), name: "my_wait");
 
         // Give it a moment to execute
-        await Task.Delay(10);
+        await tm.WaitForTerminationAsync();
 
         Assert.True(tm.IsTerminated);
         Assert.False(waitTask.IsCompleted);
@@ -433,7 +431,7 @@ public class DurableContextTests
 
         var waitTask = context.WaitAsync(TimeSpan.FromSeconds(30), name: "pending_wait");
 
-        await Task.Delay(10);
+        await tm.WaitForTerminationAsync();
 
         Assert.True(tm.IsTerminated);
         Assert.False(waitTask.IsCompleted);
